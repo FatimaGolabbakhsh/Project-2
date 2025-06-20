@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escape</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-area">
+    <canvas id="runner-canvas" width="400" height="600"></canvas>
+    <div id="game-ui">
+      <h1 id="game-title">Escape</h1>
+      <button id="start-btn">Start</button>
+      <div id="difficulty-select">
+        <label for="difficulty">Difficulty:</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="hard">Hard</option>
+          <option value="impossible">Impossible</option>
+        </select>
+      </div>
+      <div id="score">Score: 0</div>
+      <div id="game-over" style="display:none;">Game Over!<br><button id="restart-btn">Restart</button></div>
+      <div id="instructions" style="margin-top:1.2rem;">
+        <h2>How to Play</h2>
+        <ul style="text-align:left;max-width:320px;margin:0 auto 1rem auto;">
+          <li><b>Left/Right Arrow</b>: Move between lanes</li>
+          <li><b>Up Arrow</b> or <b>Space</b>: Jump</li>
+          <li><b>Collect coins</b> for points</li>
+          <li><b>Grab green power-ups</b> for invincibility & double score</li>
+          <li><b>Avoid obstacles</b> and <b>escape the monster</b> chasing you!</li>
+        </ul>
+        <div style="font-size:1.1rem;color:#f44336;"><b>Objective:</b> Survive as long as you can and fill the Escape bar to win!</div>
+      </div>
+    </div>
+    <audio id="sfx-scream" src="assets/scream.mp3" preload="auto"></audio>
+    <audio id="sfx-run" src="assets/run.mp3" preload="auto" loop></audio>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
