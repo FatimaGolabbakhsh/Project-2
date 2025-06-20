@@ -55,24 +55,24 @@ function hideStartScreen() {
 function getDifficultySettings() {
   if (difficulty === 'easy') {
     return {
-      pursuerBaseDistance: 350, // was 250
-      pursuerSpeed: 0.45,      // was 0.5
-      escapeThreshold: 600,    // was 200
-      obstacleRate: 0.025      // was 0.03
+      pursuerBaseDistance: 420, // farther away
+      pursuerSpeed: 0.32,      // slower
+      escapeThreshold: 500,    // less needed to escape
+      obstacleRate: 0.018      // fewer obstacles
     };
   } else if (difficulty === 'hard') {
     return {
-      pursuerBaseDistance: 250, // was 180
-      pursuerSpeed: 0.7,       // was 0.8
-      escapeThreshold: 900,    // was 350
-      obstacleRate: 0.04       // was 0.05
+      pursuerBaseDistance: 260, // closer
+      pursuerSpeed: 0.82,      // faster
+      escapeThreshold: 1100,   // more needed to escape
+      obstacleRate: 0.055      // more obstacles
     };
   } else if (difficulty === 'impossible') {
     return {
-      pursuerBaseDistance: 180, // was 120
-      pursuerSpeed: 1.1,       // was 1.3
-      escapeThreshold: 1600,   // was 600
-      obstacleRate: 0.07       // was 0.09
+      pursuerBaseDistance: 140, // very close
+      pursuerSpeed: 1.45,      // very fast
+      escapeThreshold: 2200,   // much more needed to escape
+      obstacleRate: 0.11       // tons of obstacles
     };
   }
 }
