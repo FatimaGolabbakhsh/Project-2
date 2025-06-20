@@ -24,49 +24,151 @@ let pursuerSpeed = 0.7;
 let pursuerBaseDistance = 200; // Start farther away
 let difficulty = 'easy';
 let gameStarted = false;
+let coins = [];
+let powerUps = [];
+let speedUps = [];
+let powerUpActive = false;
+let powerUpTimer = 0;
+let speedUpActive = false;
+let speedUpTimer = 0;
 
-// Remove startBtn and start screen logic
+// Add a simple page state: 'home' or 'game'
+let pageState = 'home';
+
+function showStartScreen() {
+  startBtn.style.display = 'block';
+  gameTitle.style.display = 'block';
+  difficultySelect.style.display = 'block';
+  instructions.style.display = 'block';
+  scoreDiv.style.display = 'none';
+  gameOverDiv.style.display = 'none';
+}
+
+function hideStartScreen() {
+  startBtn.style.display = 'none';
+  gameTitle.style.display = 'none';
+  difficultySelect.style.display = 'none';
+  instructions.style.display = 'none';
+  scoreDiv.style.display = 'block';
+}
 
 function getDifficultySettings() {
   if (difficulty === 'easy') {
     return {
-      pursuerBaseDistance: 250,
-      pursuerSpeed: 0.5,
-      escapeThreshold: 200,
-      obstacleRate: 0.03
+      pursuerBaseDistance: 350, // was 250
+      pursuerSpeed: 0.45,      // was 0.5
+      escapeThreshold: 600,    // was 200
+      obstacleRate: 0.025      // was 0.03
     };
   } else if (difficulty === 'hard') {
     return {
-      pursuerBaseDistance: 180,
-      pursuerSpeed: 0.8,
-      escapeThreshold: 350,
-      obstacleRate: 0.05
+      pursuerBaseDistance: 250, // was 180
+      pursuerSpeed: 0.7,       // was 0.8
+      escapeThreshold: 900,    // was 350
+      obstacleRate: 0.04       // was 0.05
     };
   } else if (difficulty === 'impossible') {
     return {
-      pursuerBaseDistance: 120,
-      pursuerSpeed: 1.3,
-      escapeThreshold: 600,
-      obstacleRate: 0.09
+      pursuerBaseDistance: 180, // was 120
+      pursuerSpeed: 1.1,       // was 1.3
+      escapeThreshold: 1600,   // was 600
+      obstacleRate: 0.07       // was 0.09
     };
   }
 }
 
+// --- Parallax horror background layers ---
+function drawParallaxBackground() {
+  // Sky
+  ctx.save();
+  ctx.fillStyle = '#181a22';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Moon
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.arc(canvas.width-80, 80, 50, 0, Math.PI*2);
+  ctx.fillStyle = '#e0e0e0';
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 40;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Trees (parallax)
+  for (let layer=0; layer<3; layer++) {
+    let speed = [0.2, 0.5, 1][layer];
+    let yBase = [420, 470, 520][layer];
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.12*layer;
+    for (let i=0; i<canvas.width; i+=60) {
+      let sway = Math.sin(Date.now()/900 + i/80 + layer*2) * 8;
+      ctx.beginPath();
+      ctx.moveTo(i+sway, yBase);
+      ctx.lineTo(i+10+sway, yBase-60-10*layer);
+      ctx.lineTo(i+20+sway, yBase);
+      ctx.closePath();
+      ctx.fillStyle = ['#222','#2a2a2a','#333'][layer];
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // Fog
+  for (let f=0; f<2; f++) {
+    ctx.save();
+    ctx.globalAlpha = 0.10 + 0.07*Math.sin(Date.now()/1200+f);
+    ctx.fillStyle = '#b0c4de';
+    ctx.beginPath();
+    for (let x=0; x<canvas.width+60; x+=60) {
+      let y = 540 + 18*Math.sin(Date.now()/900 + x/80 + f*2);
+      ctx.arc(x, y, 40+10*f, 0, Math.PI*2);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
+  // Vignette
+  let grad = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, canvas.width/2-40,
+    canvas.width/2, canvas.height/2, canvas.width/2
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+}
+
+// --- Enhanced draw functions ---
 function drawAnimal(x, y, color) {
   ctx.save();
+  // Bobbing
+  let bob = Math.sin(Date.now()/220)*6;
+  // Shadow
+  ctx.globalAlpha = 0.18;
   ctx.beginPath();
-  ctx.arc(x, y, 28, 0, Math.PI * 2); // head
-  ctx.fillStyle = color;
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 10;
+  ctx.ellipse(x, y+32+bob, 22, 8, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#000';
   ctx.fill();
-  ctx.beginPath(); // eyes
-  ctx.arc(x-10, y-5, 5, 0, Math.PI*2);
-  ctx.arc(x+10, y-5, 5, 0, Math.PI*2);
+  ctx.globalAlpha = 1;
+  // Body
+  ctx.beginPath();
+  ctx.arc(x, y+bob, 28, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = '#00e6ff';
+  ctx.shadowBlur = 16;
+  ctx.fill();
+  // Eyes (glow)
+  ctx.save();
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(x-10, y-5+bob, 5, 0, Math.PI*2);
+  ctx.arc(x+10, y-5+bob, 5, 0, Math.PI*2);
   ctx.fillStyle = '#fff';
   ctx.fill();
-  ctx.beginPath(); // mouth
-  ctx.arc(x, y+10, 10, 0, Math.PI, false);
+  ctx.restore();
+  // Mouth
+  ctx.beginPath();
+  ctx.arc(x, y+10+bob, 10, 0, Math.PI, false);
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   ctx.stroke();
@@ -75,19 +177,35 @@ function drawAnimal(x, y, color) {
 
 function drawMonster(x, y) {
   ctx.save();
+  // Bobbing
+  let bob = Math.sin(Date.now()/180)*10;
+  // Shadow
+  ctx.globalAlpha = 0.22;
   ctx.beginPath();
-  ctx.arc(x, y, 38, 0, Math.PI * 2);
+  ctx.ellipse(x, y+44+bob, 32, 12, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Body
+  ctx.beginPath();
+  ctx.arc(x, y+bob, 38, 0, Math.PI * 2);
   ctx.fillStyle = '#a00';
   ctx.shadowColor = '#f00';
   ctx.shadowBlur = 30;
   ctx.fill();
+  // Eyes (glow, flicker)
+  ctx.save();
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 18 + 8*Math.abs(Math.sin(Date.now()/90));
   ctx.beginPath();
-  ctx.arc(x-15, y-10, 7, 0, Math.PI*2);
-  ctx.arc(x+15, y-10, 7, 0, Math.PI*2);
+  ctx.arc(x-15, y-10+bob, 7, 0, Math.PI*2);
+  ctx.arc(x+15, y-10+bob, 7, 0, Math.PI*2);
   ctx.fillStyle = '#fff';
   ctx.fill();
+  ctx.restore();
+  // Mouth
   ctx.beginPath();
-  ctx.arc(x, y+15, 18, 0, Math.PI, false);
+  ctx.arc(x, y+15+bob, 18, 0, Math.PI, false);
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 4;
   ctx.stroke();
@@ -105,37 +223,96 @@ function drawObstacle(x, y) {
 
 function drawCoin(x, y) {
   ctx.save();
+  // Flicker
+  let flicker = 0.7 + 0.3*Math.abs(Math.sin(Date.now()/120 + y/30));
+  ctx.globalAlpha = flicker;
   ctx.beginPath();
   ctx.arc(x, y, 12, 0, Math.PI * 2);
   ctx.fillStyle = '#ffd700';
   ctx.shadowColor = '#fff';
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 16;
   ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawSpeedUp(x, y) {
+  ctx.save();
+  // Flicker
+  let flicker = 0.7 + 0.3*Math.abs(Math.sin(Date.now()/100 + y/20));
+  ctx.globalAlpha = flicker;
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#f00';
+  ctx.shadowColor = '#f00';
+  ctx.shadowBlur = 18;
+  ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
 function drawPowerUp(x, y) {
   ctx.save();
+  // Flicker
+  let flicker = 0.7 + 0.3*Math.abs(Math.sin(Date.now()/90 + y/18));
+  ctx.globalAlpha = flicker;
   ctx.beginPath();
   ctx.arc(x, y, 14, 0, Math.PI * 2);
   ctx.fillStyle = '#00e676';
   ctx.shadowColor = '#0f0';
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 22;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// --- Proximity flash effect ---
+function drawProximityFlash() {
+  let dist = pursuerY - player.y;
+  if (dist < 120) {
+    let flash = 0.18 + 0.18*Math.abs(Math.sin(Date.now()/60));
+    ctx.save();
+    ctx.globalAlpha = flash * (1 - dist/120);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+  }
+}
+
+// --- UI horror polish ---
+function drawHorrorUI() {
+  // Dripping effect on escape bar
+  ctx.save();
+  let dripY = 36 + 2*Math.abs(Math.sin(Date.now()/200));
+  ctx.fillStyle = '#3ad';
+  ctx.beginPath();
+  ctx.arc(20 + Math.max(0, Math.min(escapeMeter, escapeThreshold)) * 120 / escapeThreshold, dripY, 4, 0, Math.PI*2);
   ctx.fill();
   ctx.restore();
 }
 
+// --- Draw the escape bar at the top of the canvas ---
 function drawEscapeBar() {
   ctx.save();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(20, 20, 120, 16);
-  ctx.fillStyle = '#3ad';
-  ctx.fillRect(20, 20, Math.max(0, Math.min(escapeMeter, escapeThreshold)) * 120 / escapeThreshold, 16);
-  ctx.strokeStyle = '#222';
-  ctx.strokeRect(20, 20, 120, 16);
-  ctx.font = '12px Arial';
+  // Bar background
+  ctx.globalAlpha = 0.7;
   ctx.fillStyle = '#222';
-  ctx.fillText('Escape', 25, 32);
+  ctx.fillRect(20, 20, 120, 18);
+  // Bar fill
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#3ad';
+  let fill = Math.max(0, Math.min(escapeMeter, escapeThreshold)) * 120 / escapeThreshold;
+  ctx.fillRect(20, 20, fill, 18);
+  // Bar border
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(20, 20, 120, 18);
+  // Text
+  ctx.font = 'bold 15px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+  ctx.fillText('Escape', 24, 34);
   ctx.restore();
 }
 
@@ -147,31 +324,73 @@ function resetGame() {
   escapeThreshold = settings.escapeThreshold;
   player = { lane: 1, y: 500, vy: 0, jumping: false };
   obstacles = [];
+  coins = [];
+  powerUps = [];
+  speedUps = [];
   pursuerY = player.y + pursuerBaseDistance;
   score = 0;
   running = false;
   gameOver = false;
   escapeMeter = 0;
   escaped = false;
+  powerUpActive = false;
+  powerUpTimer = 0;
+  speedUpActive = false;
+  speedUpTimer = 0;
   scoreDiv.textContent = 'Score: 0';
   gameOverDiv.style.display = 'none';
 }
 
 function startGame() {
-  if (gameStarted) return;
+  // Always show the game canvas and score, hide home/start UI
+  hideStartScreen();
+  canvas.style.display = 'block';
+  scoreDiv.style.display = 'block';
+  gameOverDiv.style.display = 'none';
+  // Reset all state and start the game
+  resetGame();
+  // Set running and gameStarted flags after reset
+  running = true;
   gameStarted = true;
-  // Hide start UI
-  startBtn.style.display = 'none';
-  gameTitle.style.display = 'none';
-  difficultySelect.style.display = 'none';
-  instructions.style.display = 'none';
-  // Show score
+  // Start the game loop (no forced draw, let gameLoop handle everything)
+  sfxRun.currentTime = 0;
+  sfxRun.play();
+  requestAnimationFrame(gameLoop);
+}
+
+function showHomePage() {
+  pageState = 'home';
+  showStartScreen();
+  // Hide canvas and score/game UI
+  canvas.style.display = 'none';
+  scoreDiv.style.display = 'none';
+  gameOverDiv.style.display = 'none';
+}
+
+function showGamePage() {
+  pageState = 'game';
+  hideStartScreen();
+  canvas.style.display = 'block';
   scoreDiv.style.display = 'block';
   resetGame();
   running = true;
   sfxRun.currentTime = 0;
   sfxRun.play();
   requestAnimationFrame(gameLoop);
+}
+
+// Always attach these listeners
+startBtn.onclick = startGame;
+
+function setRestartHandler() {
+  const btn = document.getElementById('restart-btn');
+  if (btn) {
+    btn.onclick = function() {
+      showHomePage();
+      gameStarted = false;
+      running = false;
+    };
+  }
 }
 
 function endGame() {
@@ -189,12 +408,15 @@ function endGame() {
   ctx.restore();
   setTimeout(() => {
     gameOverDiv.style.display = 'block';
+    setRestartHandler();
   }, 900);
 }
 
 function gameLoop() {
   if (!running) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // --- Draw parallax horror background ---
+  drawParallaxBackground();
+  ctx.clearRect(0, 0, canvas.width, 80); // keep top UI clear
   // Draw tracks
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 6;
@@ -224,6 +446,12 @@ function gameLoop() {
     powerUps[i].y += 7;
   }
   powerUps = powerUps.filter(p => p.y < 650);
+  // Draw and move speed-ups
+  for (let i = 0; i < speedUps.length; i++) {
+    drawSpeedUp(laneX[speedUps[i].lane], speedUps[i].y);
+    speedUps[i].y += 7;
+  }
+  speedUps = speedUps.filter(s => s.y < 650);
   // Move obstacles
   for (let i = 0; i < obstacles.length; i++) {
     obstacles[i].y += 7;
@@ -237,6 +465,10 @@ function gameLoop() {
   // Add new power-ups
   if (Math.random() < 0.008 && !powerUpActive) {
     powerUps.push({ lane: Math.floor(Math.random()*3), y: -30 });
+  }
+  // Add new speed-ups
+  if (Math.random() < 0.012 && !speedUpActive) {
+    speedUps.push({ lane: Math.floor(Math.random()*3), y: -30 });
   }
   // Add new obstacles
   const settings = getDifficultySettings();
@@ -260,10 +492,35 @@ function gameLoop() {
       i--;
     }
   }
+  // Speed-up collection
+  for (let i = 0; i < speedUps.length; i++) {
+    if (speedUps[i].lane === player.lane && Math.abs(speedUps[i].y - player.y) < 32) {
+      speedUpActive = true;
+      speedUpTimer = 300; // 5 seconds at 60fps
+      speedUps.splice(i, 1);
+      i--;
+    }
+  }
+  // Speed-up effect: increase player speed
+  let jumpBoost = 16;
+  let speedBoost = 1;
+  if (speedUpActive) {
+    ctx.save();
+    ctx.globalAlpha = 0.10 + 0.10 * Math.sin(Date.now()/60); // LESS BRIGHT
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    speedUpTimer--;
+    speedBoost = 1.7;
+    jumpBoost = 20;
+    if (speedUpTimer <= 0) {
+      speedUpActive = false;
+    }
+  }
   // Power-up effect: invincibility and double score
   if (powerUpActive) {
     ctx.save();
-    ctx.globalAlpha = 0.25 + 0.25 * Math.sin(Date.now()/80);
+    ctx.globalAlpha = 0.13 + 0.13 * Math.sin(Date.now()/80); // LESS BRIGHT
     ctx.fillStyle = '#00e676';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
@@ -272,6 +529,15 @@ function gameLoop() {
       powerUpActive = false;
     }
   }
+  // Move obstacles, coins, power-ups, and speed-ups
+  for (let i = 0; i < obstacles.length; i++) obstacles[i].y += 7 * speedBoost;
+  for (let i = 0; i < coins.length; i++) coins[i].y += 7 * speedBoost;
+  for (let i = 0; i < powerUps.length; i++) powerUps[i].y += 7 * speedBoost;
+  for (let i = 0; i < speedUps.length; i++) speedUps[i].y += 7 * speedBoost;
+  // Remove off-screen coins, power-ups, and speed-ups
+  coins = coins.filter(c => c.y < 650);
+  powerUps = powerUps.filter(p => p.y < 650);
+  speedUps = speedUps.filter(s => s.y < 650);
   // Check collisions (update for power-up)
   for (let i = 0; i < obstacles.length; i++) {
     if (obstacles[i].lane === player.lane && Math.abs(obstacles[i].y - player.y) < 32) {
@@ -306,7 +572,7 @@ function gameLoop() {
       scoreDiv.textContent = 'Score: ' + score + ' (You escaped the monster!)';
       gameOverDiv.innerHTML = 'You Escaped!<br><button id="restart-btn">Restart</button>';
       gameOverDiv.style.display = 'block';
-      document.getElementById('restart-btn').onclick = startGame;
+      setRestartHandler();
       return;
     }
   } else if (pursuerY < player.y + 60) {
@@ -315,7 +581,7 @@ function gameLoop() {
   }
   // Player jump
   if (player.jumping) {
-    player.vy -= 1.2;
+    player.vy -= 1.2 * speedBoost;
     player.y -= player.vy;
     if (player.y >= 500) {
       player.y = 500;
@@ -331,6 +597,8 @@ function gameLoop() {
   }
   scoreDiv.textContent = 'Score: ' + score;
   drawEscapeBar();
+  // --- UI horror polish ---
+  drawHorrorUI();
   requestAnimationFrame(gameLoop);
 }
 
@@ -340,31 +608,14 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' && player.lane < 2) player.lane++;
   if ((e.key === 'ArrowUp' || e.key === ' ') && !player.jumping) {
     player.jumping = true;
-    player.vy = 16;
+    player.vy = speedUpActive ? 20 : 16;
   }
 });
 
-startBtn.onclick = startGame;
-
-restartBtn.onclick = function() {
-  gameStarted = false;
-  // Show start UI again
-  startBtn.style.display = 'block';
-  gameTitle.style.display = 'block';
-  difficultySelect.style.display = 'block';
-  instructions.style.display = 'block';
-  scoreDiv.style.display = 'none';
-  gameOverDiv.style.display = 'none';
-  resetGame();
-  running = false;
-};
-
 window.onload = function() {
-  resetGame();
-  // Hide score and game over until game starts
-  scoreDiv.style.display = 'none';
-  gameOverDiv.style.display = 'none';
-  running = false;
+  showHomePage();
+  // Always ensure canvas is hidden on home
+  canvas.style.display = 'none';
 };
 
 difficultySelect.onchange = resetGame;
