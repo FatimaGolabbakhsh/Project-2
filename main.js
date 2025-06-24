@@ -26,11 +26,8 @@ let difficulty = 'easy';
 let gameStarted = false;
 let coins = [];
 let powerUps = [];
-let speedUps = [];
 let powerUpActive = false;
 let powerUpTimer = 0;
-let speedUpActive = false;
-let speedUpTimer = 0;
 
 // Add a simple page state: 'home' or 'game'
 let pageState = 'home';
@@ -228,24 +225,9 @@ function drawCoin(x, y) {
   ctx.globalAlpha = flicker;
   ctx.beginPath();
   ctx.arc(x, y, 12, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffd700';
-  ctx.shadowColor = '#fff';
+  ctx.fillStyle = '#ffd700'; // yellow
+  ctx.shadowColor = '#ffd700';
   ctx.shadowBlur = 16;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawSpeedUp(x, y) {
-  ctx.save();
-  // Flicker
-  let flicker = 0.7 + 0.3*Math.abs(Math.sin(Date.now()/100 + y/20));
-  ctx.globalAlpha = flicker;
-  ctx.beginPath();
-  ctx.arc(x, y, 12, 0, Math.PI * 2);
-  ctx.fillStyle = '#f00';
-  ctx.shadowColor = '#f00';
-  ctx.shadowBlur = 18;
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -258,8 +240,8 @@ function drawPowerUp(x, y) {
   ctx.globalAlpha = flicker;
   ctx.beginPath();
   ctx.arc(x, y, 14, 0, Math.PI * 2);
-  ctx.fillStyle = '#00e676';
-  ctx.shadowColor = '#0f0';
+  ctx.fillStyle = '#00e676'; // green
+  ctx.shadowColor = '#00e676';
   ctx.shadowBlur = 22;
   ctx.fill();
   ctx.globalAlpha = 1;
@@ -326,7 +308,6 @@ function resetGame() {
   obstacles = [];
   coins = [];
   powerUps = [];
-  speedUps = [];
   pursuerY = player.y + pursuerBaseDistance;
   score = 0;
   running = false;
@@ -335,8 +316,6 @@ function resetGame() {
   escaped = false;
   powerUpActive = false;
   powerUpTimer = 0;
-  speedUpActive = false;
-  speedUpTimer = 0;
   scoreDiv.textContent = 'Score: 0';
   gameOverDiv.style.display = 'none';
 }
@@ -446,12 +425,6 @@ function gameLoop() {
     powerUps[i].y += 7;
   }
   powerUps = powerUps.filter(p => p.y < 650);
-  // Draw and move speed-ups
-  for (let i = 0; i < speedUps.length; i++) {
-    drawSpeedUp(laneX[speedUps[i].lane], speedUps[i].y);
-    speedUps[i].y += 7;
-  }
-  speedUps = speedUps.filter(s => s.y < 650);
   // Move obstacles
   for (let i = 0; i < obstacles.length; i++) {
     obstacles[i].y += 7;
@@ -465,10 +438,6 @@ function gameLoop() {
   // Add new power-ups
   if (Math.random() < 0.008 && !powerUpActive) {
     powerUps.push({ lane: Math.floor(Math.random()*3), y: -30 });
-  }
-  // Add new speed-ups
-  if (Math.random() < 0.012 && !speedUpActive) {
-    speedUps.push({ lane: Math.floor(Math.random()*3), y: -30 });
   }
   // Add new obstacles
   const settings = getDifficultySettings();
@@ -492,31 +461,6 @@ function gameLoop() {
       i--;
     }
   }
-  // Speed-up collection
-  for (let i = 0; i < speedUps.length; i++) {
-    if (speedUps[i].lane === player.lane && Math.abs(speedUps[i].y - player.y) < 32) {
-      speedUpActive = true;
-      speedUpTimer = 300; // 5 seconds at 60fps
-      speedUps.splice(i, 1);
-      i--;
-    }
-  }
-  // Speed-up effect: increase player speed
-  let jumpBoost = 16;
-  let speedBoost = 1;
-  if (speedUpActive) {
-    ctx.save();
-    ctx.globalAlpha = 0.10 + 0.10 * Math.sin(Date.now()/60); // LESS BRIGHT
-    ctx.fillStyle = '#f00';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-    speedUpTimer--;
-    speedBoost = 1.7;
-    jumpBoost = 20;
-    if (speedUpTimer <= 0) {
-      speedUpActive = false;
-    }
-  }
   // Power-up effect: invincibility and double score
   if (powerUpActive) {
     ctx.save();
@@ -529,21 +473,32 @@ function gameLoop() {
       powerUpActive = false;
     }
   }
-  // Move obstacles, coins, power-ups, and speed-ups
-  for (let i = 0; i < obstacles.length; i++) obstacles[i].y += 7 * speedBoost;
-  for (let i = 0; i < coins.length; i++) coins[i].y += 7 * speedBoost;
-  for (let i = 0; i < powerUps.length; i++) powerUps[i].y += 7 * speedBoost;
-  for (let i = 0; i < speedUps.length; i++) speedUps[i].y += 7 * speedBoost;
-  // Remove off-screen coins, power-ups, and speed-ups
+  // Move obstacles, coins, and power-ups
+  for (let i = 0; i < obstacles.length; i++) obstacles[i].y += 7;
+  for (let i = 0; i < coins.length; i++) coins[i].y += 7;
+  for (let i = 0; i < powerUps.length; i++) powerUps[i].y += 7;
+  // Remove off-screen coins and power-ups
   coins = coins.filter(c => c.y < 650);
   powerUps = powerUps.filter(p => p.y < 650);
-  speedUps = speedUps.filter(s => s.y < 650);
   // Check collisions (update for power-up)
   for (let i = 0; i < obstacles.length; i++) {
-    if (obstacles[i].lane === player.lane && Math.abs(obstacles[i].y - player.y) < 32) {
-      if (!player.jumping && !powerUpActive) {
-        pursuerY -= 40;
-        if (pursuerY < player.y + 40) {
+    if (obstacles[i].lane === player.lane) {
+      // If player is on the ground and collides horizontally (hit or land on top)
+      if (!player.jumping && Math.abs(obstacles[i].y - player.y) < 32 && !powerUpActive) {
+        endGame();
+        return;
+      }
+      // If player is jumping and lands on top of the block (feet touch top of block)
+      if (player.jumping && !powerUpActive) {
+        // Player's feet are at player.y+28 (radius of animal), block top is obstacles[i].y-10
+        // If player's feet are just above the block and coming down
+        let playerFeet = player.y + 28;
+        let blockTop = obstacles[i].y - 10;
+        if (
+          player.vy < 0 && // falling down
+          Math.abs(playerFeet - blockTop) < 12 && // close to top
+          Math.abs(obstacles[i].y - player.y) < 40 // in vertical range
+        ) {
           endGame();
           return;
         }
@@ -581,7 +536,7 @@ function gameLoop() {
   }
   // Player jump
   if (player.jumping) {
-    player.vy -= 1.2 * speedBoost;
+    player.vy -= 1.2;
     player.y -= player.vy;
     if (player.y >= 500) {
       player.y = 500;
@@ -608,7 +563,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' && player.lane < 2) player.lane++;
   if ((e.key === 'ArrowUp' || e.key === ' ') && !player.jumping) {
     player.jumping = true;
-    player.vy = speedUpActive ? 20 : 16;
+    player.vy = 16;
   }
 });
 
