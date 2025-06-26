@@ -3,8 +3,6 @@ const ctx = canvas.getContext('2d');
 const restartBtn = document.getElementById('restart-btn');
 const scoreDiv = document.getElementById('score');
 const gameOverDiv = document.getElementById('game-over');
-const sfxScream = document.getElementById('sfx-scream');
-const sfxRun = document.getElementById('sfx-run');
 const difficultySelect = document.getElementById('difficulty');
 const startBtn = document.getElementById('start-btn');
 const gameTitle = document.getElementById('game-title');
@@ -261,40 +259,46 @@ function drawProximityFlash() {
   }
 }
 
-// --- UI horror polish ---
-function drawHorrorUI() {
-  // Dripping effect on escape bar
-  ctx.save();
-  let dripY = 36 + 2*Math.abs(Math.sin(Date.now()/200));
-  ctx.fillStyle = '#3ad';
-  ctx.beginPath();
-  ctx.arc(20 + Math.max(0, Math.min(escapeMeter, escapeThreshold)) * 120 / escapeThreshold, dripY, 4, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-}
-
-// --- Draw the escape bar at the top of the canvas ---
+// --- Draw the escape bar at the very top of the canvas ---
 function drawEscapeBar() {
   ctx.save();
   // Bar background
-  ctx.globalAlpha = 0.7;
+  let barY = 12; // Move to top
+  ctx.globalAlpha = 0.85;
   ctx.fillStyle = '#222';
-  ctx.fillRect(20, 20, 120, 18);
+  // Add drop shadow for contrast
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(20, barY, canvas.width-40, 22);
+  ctx.shadowBlur = 0;
   // Bar fill
-  ctx.globalAlpha = 0.95;
+  ctx.globalAlpha = 0.98;
   ctx.fillStyle = '#3ad';
-  let fill = Math.max(0, Math.min(escapeMeter, escapeThreshold)) * 120 / escapeThreshold;
-  ctx.fillRect(20, 20, fill, 18);
+  let fill = Math.max(0, Math.min(escapeMeter, escapeThreshold)) * (canvas.width-40) / escapeThreshold;
+  ctx.fillRect(20, barY, fill, 22);
   // Bar border
   ctx.globalAlpha = 1;
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2.5;
-  ctx.strokeRect(20, 20, 120, 18);
+  ctx.strokeRect(20, barY, canvas.width-40, 22);
   // Text
-  ctx.font = 'bold 15px Arial';
+  ctx.font = 'bold 16px Arial';
   ctx.fillStyle = '#fff';
-  ctx.textAlign = 'left';
-  ctx.fillText('Escape', 24, 34);
+  ctx.textAlign = 'center';
+  ctx.fillText('Escape', canvas.width/2, barY + 16);
+  ctx.restore();
+}
+
+// --- UI horror polish ---
+function drawHorrorUI() {
+  // Dripping effect on escape bar (now at very top)
+  ctx.save();
+  let barY = 12;
+  let dripY = barY + 34 + 2*Math.abs(Math.sin(Date.now()/200));
+  ctx.fillStyle = '#3ad';
+  ctx.beginPath();
+  ctx.arc(30 + Math.max(0, Math.min(escapeMeter, escapeThreshold)) * (canvas.width-60) / escapeThreshold, dripY, 5, 0, Math.PI*2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -332,8 +336,6 @@ function startGame() {
   running = true;
   gameStarted = true;
   // Start the game loop (no forced draw, let gameLoop handle everything)
-  sfxRun.currentTime = 0;
-  sfxRun.play();
   requestAnimationFrame(gameLoop);
 }
 
@@ -353,8 +355,6 @@ function showGamePage() {
   scoreDiv.style.display = 'block';
   resetGame();
   running = true;
-  sfxRun.currentTime = 0;
-  sfxRun.play();
   requestAnimationFrame(gameLoop);
 }
 
@@ -375,9 +375,6 @@ function setRestartHandler() {
 function endGame() {
   running = false;
   gameOver = true;
-  sfxRun.pause();
-  sfxScream.currentTime = 0;
-  sfxScream.play();
   // Show ghost jumpscare
   ctx.save();
   ctx.font = '100px Arial';
@@ -386,6 +383,8 @@ function endGame() {
   ctx.fillText('👻', canvas.width/2, canvas.height/2 + 30);
   ctx.restore();
   setTimeout(() => {
+    // Only show 'You Died!' here
+    gameOverDiv.innerHTML = 'You Died!<br><button id="restart-btn">Restart</button>';
     gameOverDiv.style.display = 'block';
     setRestartHandler();
   }, 900);
@@ -396,6 +395,9 @@ function gameLoop() {
   // --- Draw parallax horror background ---
   drawParallaxBackground();
   ctx.clearRect(0, 0, canvas.width, 80); // keep top UI clear
+  // Draw escape bar and UI FIRST so it is always on top at the top
+  drawEscapeBar();
+  drawHorrorUI();
   // Draw tracks
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 6;
@@ -523,15 +525,29 @@ function gameLoop() {
     if (escapeMeter >= escapeThreshold && !escaped) {
       escaped = true;
       running = false;
-      sfxRun.pause();
       scoreDiv.textContent = 'Score: ' + score + ' (You escaped the monster!)';
-      gameOverDiv.innerHTML = 'You Escaped!<br><button id="restart-btn">Restart</button>';
-      gameOverDiv.style.display = 'block';
-      setRestartHandler();
+      setTimeout(() => {
+        gameOverDiv.innerHTML = 'You Escaped!<br><button id="restart-btn">Restart</button>';
+        gameOverDiv.style.display = 'block';
+        setRestartHandler();
+      }, 900);
       return;
     }
   } else if (pursuerY < player.y + 60) {
-    endGame();
+    running = false;
+    gameOver = true;
+    // Show ghost jumpscare
+    ctx.save();
+    ctx.font = '100px Arial';
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.92;
+    ctx.fillText('👻', canvas.width/2, canvas.height/2 + 30);
+    ctx.restore();
+    setTimeout(() => {
+      gameOverDiv.innerHTML = 'Game Over!<br><button id="restart-btn">Restart</button>';
+      gameOverDiv.style.display = 'block';
+      setRestartHandler();
+    }, 900);
     return;
   }
   // Player jump
@@ -551,9 +567,7 @@ function gameLoop() {
     score++;
   }
   scoreDiv.textContent = 'Score: ' + score;
-  drawEscapeBar();
-  // --- UI horror polish ---
-  drawHorrorUI();
+  // Draw escape bar and UI last so it is always on top at the bottom
   requestAnimationFrame(gameLoop);
 }
 
@@ -574,3 +588,20 @@ window.onload = function() {
 };
 
 difficultySelect.onchange = resetGame;
+
+// Global error handler
+window.onerror = function(message, source, lineno, colno, error) {
+  let overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.background = 'rgba(0,0,0,0.85)';
+  overlay.style.color = '#fff';
+  overlay.style.zIndex = '9999';
+  overlay.style.fontSize = '1.2rem';
+  overlay.style.padding = '2rem';
+  overlay.innerText = 'JavaScript Error:\n' + message + '\n' + source + ':' + lineno + ':' + colno;
+  document.body.appendChild(overlay);
+};
